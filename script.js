@@ -5,7 +5,7 @@ const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let myData = null;
 
-// 指数表記を直してカンマ区切りにする関数（完全移植）
+// 巨大数フォーマット
 function f(n) {
   if (n === null || n === undefined) return "0";
   try {
@@ -22,7 +22,7 @@ function f(n) {
   }
 }
 
-// --- ログイン・登録 ---
+// ログイン・登録
 async function cmdLogin() {
   const name = document.getElementById('player-name').value;
   const pass = document.getElementById('player-pass').value;
@@ -30,40 +30,50 @@ async function cmdLogin() {
   
   document.getElementById('log').innerHTML = "通信中...";
 
-  let { data: player } = await _supabase.from('players').select('*').eq('name', name).single();
+  try {
+    let { data: player } = await _supabase.from('players').select('*').eq('name', name).single();
 
-  if (!player) {
-    const initialInv = { weapon: null, armor: null, bag: [] };
-    const { data: newUser } = await _supabase.from('players').insert([{
-      name, password: pass, hp: 100, base_max_hp: 100, lv: 1, exp: 0, gold: 5000, inventory: initialInv, job: '冒険者', last_raid: 0
-    }]).select().single();
-    myData = newUser;
-    document.getElementById('log').innerHTML = `店主：「はじめまして、${name}！ 新しい冒険の始まりだ！」`;
-  } else {
-    if (player.password !== pass) return alert("店主：「おっと、パスワードが違うようだね。」");
-    myData = player;
-    document.getElementById('log').innerHTML = `店主：「おかえり、${name}！ 待ってたよ。」`;
+    if (!player) {
+      const initialInv = { weapon: null, armor: null, bag: [] };
+      const { data: newUser, error: insErr } = await _supabase.from('players').insert([{
+        name, password: pass, hp: 100, base_max_hp: 100, lv: 1, exp: 0, gold: 5000, inventory: initialInv, job: '冒険者', last_raid: 0
+      }]).select().single();
+      if (insErr) throw insErr;
+      myData = newUser;
+      document.getElementById('log').innerHTML = `店主：「はじめまして、${name}！ 新しい冒険の始まりだ！」`;
+    } else {
+      if (player.password !== pass) {
+        document.getElementById('log').innerHTML = "店主：「パスワードが違うよ！」";
+        return;
+      }
+      myData = player;
+      document.getElementById('log').innerHTML = `店主：「おかえり、${name}！ 待ってたよ。」`;
+    }
+
+    // UI表示
+    document.getElementById('login-form').style.display = "none";
+    document.getElementById('area-select').disabled = false;
+    document.getElementById('btn-battle').disabled = false;
+    document.getElementById('btn-rest').disabled = false;
+    document.getElementById('btn-shop').disabled = false;
+    document.getElementById('inventory-panel').style.display = "block";
+    document.getElementById('raid-panel').style.display = "block";
+    
+    updateUI();
+    setInterval(updateUI, 5000); 
+  } catch (e) {
+    console.error(e);
+    document.getElementById('log').innerHTML = "エラーが発生しました: " + e.message;
   }
-
-  document.getElementById('login-form').style.display = "none";
-  document.getElementById('area-select').disabled = false;
-  document.getElementById('btn-battle').disabled = false;
-  document.getElementById('btn-rest').disabled = false;
-  document.getElementById('btn-shop').disabled = false;
-  document.getElementById('inventory-panel').style.display = "block";
-  document.getElementById('raid-panel').style.display = "block";
-  
-  updateUI();
-  setInterval(updateUI, 5000); // 5秒おきに最新化
 }
 
-// --- ステータス計算と表示 ---
+// ステータス表示
 function updateUI() {
   if(!myData) return;
   
-  // 防具HP加算ロジックの強化（完全移植）
   const armorHPs = { "皮の服": 20, "銅の鎧": 200, "鉄の鎧": 400, "金の鎧": 900, "プラチナの鎧": 2000, "妖精の服": 100000, "天の羽衣": 2000000 };
-  let maxHp = Number(myData.base_max_hp) + (armorHPs[myData.inventory.armor] || 0);
+  const inv = myData.inventory || { weapon: null, armor: null, bag: [] };
+  let maxHp = Number(myData.base_max_hp) + (armorHPs[inv.armor] || 0);
   
   const hpPer = (myData.hp / maxHp) * 100;
   document.getElementById('status').innerHTML = `
@@ -71,25 +81,27 @@ function updateUI() {
     HP: ${f(myData.hp)} / ${f(maxHp)}
     <div class="hp-bar"><div class="hp-fill" style="width:${hpPer}%"></div></div>
     Exp: ${f(myData.exp)} | Gold: ${f(myData.gold)}G<br>
-    <span style="font-size:12px; color:#aaa;">装備: 武器:${myData.inventory.weapon || "なし"} / 防具:${myData.inventory.armor || "なし"}</span>
+    <span style="font-size:12px; color:#aaa;">装備: 武器:${inv.weapon || "なし"} / 防具:${inv.armor || "なし"}</span>
   `;
 
   document.getElementById('p-job').innerText = myData.job;
-  document.getElementById('inv-weapon').innerText = myData.inventory.weapon || "なし";
-  document.getElementById('btn-un-weapon').style.display = myData.inventory.weapon ? "inline-block" : "none";
-  document.getElementById('inv-armor').innerText = myData.inventory.armor || "なし";
-  document.getElementById('btn-un-armor').style.display = myData.inventory.armor ? "inline-block" : "none";
+  document.getElementById('inv-weapon').innerText = inv.weapon || "なし";
+  document.getElementById('btn-un-weapon').style.display = inv.weapon ? "inline-block" : "none";
+  document.getElementById('inv-armor').innerText = inv.armor || "なし";
+  document.getElementById('btn-un-armor').style.display = inv.armor ? "inline-block" : "none";
 
   let bagHtml = "";
-  myData.inventory.bag.forEach(item => {
-    bagHtml += `<span style="margin-right:10px; display:inline-block; border:1px solid #555; padding:2px 5px; background:#111;">${item} <button onclick="cmdEquip('${item}')" style="padding:1px 5px; font-size:11px; border-color:#38bdf8; color:#38bdf8;">装備</button></span>`;
-  });
+  if (inv.bag) {
+    inv.bag.forEach(item => {
+      bagHtml += `<span style="margin-right:10px; display:inline-block; border:1px solid #555; padding:2px 5px; background:#111;">${item} <button onclick="cmdEquip('${item}')" style="padding:1px 5px; font-size:11px; border-color:#38bdf8; color:#38bdf8;">装備</button></span>`;
+    });
+  }
   document.getElementById('bag-list').innerHTML = "バッグの中身: " + (bagHtml || "なし");
 
   refreshWorldInfo();
 }
 
-// --- 冒険処理（全敵データ・200ターンバトル・ロジック完全移植） ---
+// 敵データ（省略なし）
 const areaEnemies = {
     beginner: [{n:"スライム",hp:15,str:5,exp:5,g:15},{n:"ゴブリン",hp:35,str:10,exp:15,g:40},{n:"アイファング",hp:45,str:15,exp:20,g:50},{n:"ミニゴリラ",hp:100,str:50,exp:55,g:100},{n:"カーバンクル",hp:65,str:10,exp:15,g:40},{n:"ブルーウィスプ",hp:65,str:10,exp:15,g:40},{n:"キラービー",hp:65,str:10,exp:15,g:40},{n:"ウェアウルフ",hp:65,str:10,exp:15,g:40},{n:"バーサーカー",hp:65,str:10,exp:15,g:40},{n:"ゾンビ",hp:65,str:10,exp:15,g:40},{n:"マミー",hp:65,str:10,exp:15,g:40},{n:"呪いの銅貨",hp:65,str:10,exp:15,g:40},{n:"タランチュラ",hp:65,str:10,exp:15,g:40},{n:"ホースの黒い馬",hp:65,str:10,exp:15,g:40},{n:"変異ゴブリン",hp:3000,str:100,exp:105,g:4000},{n:"コボルド",hp:25,str:8,exp:8,g:20},{n:"マッドポリス",hp:50,str:12,exp:18,g:45},{n:"フォレストシーフ",hp:55,str:14,exp:15,g:120},{n:"スポアキノコ",hp:20,str:6,exp:5,g:15},{n:"アーマービートル",hp:80,str:12,exp:25,g:60},{n:"牙ウサギ",hp:18,str:7,exp:6,g:12},{n:"スケルトン歩兵",hp:70,str:18,exp:30,g:80},{n:"レッサーデーモン",hp:120,str:25,exp:45,g:150},{n:"ワイルドボア",hp:90,str:20,exp:35,g:90},{n:"迷い犬",hp:12,str:4,exp:3,g:10}],
     cave: [{n:"どくグモ",hp:60,str:18,exp:35,g:90},{n:"変異タランチュラ",hp:100,str:20,exp:100,g:200},{n:"ダークバット",hp:45,str:12,exp:25,g:70},{n:"ロックタートル",hp:90,str:10,exp:40,g:85},{n:"シャドウクローラー",hp:75,str:22,exp:50,g:120},{n:"クリスタルハウンド",hp:85,str:25,exp:60,g:300},{n:"地底の這いずる目",hp:55,str:30,exp:45,g:110},{n:"石の守護者",hp:150,str:15,exp:80,g:180},{n:"彷徨う炭鉱夫の霊",hp:80,str:24,exp:55,g:130},{n:"アシッドスライム",hp:50,str:35,exp:40,g:95},{n:"鉄鉱石の精霊",hp:120,str:18,exp:70,g:250},{n:"沈黙の鍾乳石",hp:40,str:40,exp:35,g:80}],
@@ -104,10 +116,12 @@ const areaEnemies = {
     goldget: [{n:"金のダイオウイカ",hp:100000000,str:100000,exp:80,g:50000000},{n:"成金ポーク",hp:200000000,str:200000,exp:100,g:100000000},{n:"100億の貯金箱",hp:500000000,str:500000,exp:200,g:500000000},{n:"宝石まみれのゴリラ",hp:1000000000,str:1000000,exp:500,g:1000000000},{n:"石油王",hp:5000000000,str:5000000,exp:1000,g:5000000000},{n:"強欲な徴税官",hp:10000000000,str:10000000,exp:2000,g:10000000000},{n:"バブルの亡霊",hp:50000000000,str:20000000,exp:5000,g:50000000000},{n:"時価総額1兆の怪獣",hp:100000000000,str:50000000,exp:10000,g:100000000000},{n:"宇宙銀行の頭取",hp:500000000000,str:100000000,exp:50000,g:500000000000},{n:"ゴールドおじさん",hp:100000000000000000000000000000,str:10000000000000,exp:10,g:1000000000000000000},{n:"黄金のスライム",hp:80000000,str:50000,exp:50,g:30000000},{n:"幸運のラビット",hp:50000000,str:30000,exp:30,g:20000000},{n:"大商人の馬車",hp:350000000,str:80000,exp:150,g:150000000},{n:"輝くコインの山",hp:150000000,str:40000,exp:100,g:80000000},{n:"欲深いドワーフ",hp:800000000,str:300000,exp:400,g:400000000},{n:"隠された宝箱",hp:20000000,str:10000,exp:20,g:10000000},{n:"富の精霊",hp:2500000000,str:2000000,exp:800,g:2000000000},{n:"宝物庫の自動人形",hp:7000000000,str:8000000,exp:1500,g:8000000000},{n:"伝説の福袋",hp:1000000,str:5000,exp:10,g:1000000},{n:"マハラジャの象",hp:30000000000,str:15000000,exp:3000,g:25000000000}]
 };
 
+// 戦闘メイン
 async function cmdBattle() {
   if(!myData) return;
   const armorHPs = { "皮の服": 20, "銅の鎧": 200, "鉄の鎧": 400, "金の鎧": 900, "プラチナの鎧": 2000, "妖精の服": 100000, "天の羽衣": 2000000 };
-  let maxHp = Number(myData.base_max_hp) + (armorHPs[myData.inventory.armor] || 0);
+  const inv = myData.inventory || { weapon: null, armor: null, bag: [] };
+  let maxHp = Number(myData.base_max_hp) + (armorHPs[inv.armor] || 0);
 
   if(myData.hp <= 0) return alert("HPがありません！休息してください。");
 
@@ -126,12 +140,11 @@ async function cmdBattle() {
   let battleLog = "";
   let isWin = false;
 
-  // 200ターンバトルの完全移植
   for (let turn = 1; turn <= 200; turn++) {
     battleLog += `<b>--- Turn ${turn} ---</b><br>`;
     let pStr = 8 + myData.lv * 4; 
     const weaponAtks = {"刀": 250, "ロングソード": 400, "ダガー": 600, ワイトスレイヤー:50000, ムラマサ:200000, "ナイフ": 100};
-    if (myData.inventory.weapon && weaponAtks[myData.inventory.weapon]) pStr += weaponAtks[myData.inventory.weapon];
+    if (inv.weapon && weaponAtks[inv.weapon]) pStr += weaponAtks[inv.weapon];
     
     let dmgMult = 1.0;
     if (myData.job === "戦士") dmgMult = 1.1;
@@ -162,23 +175,18 @@ async function cmdBattle() {
     myData.gold += enemy.g;
     battleLog += `<br>${f(enemy.exp)}の経験値と${f(enemy.g)}Gを獲得！`;
     
-    // ドロップ判定（完全移植）
-    let itemDropped = false;
-    if (enemy.n === "ゴブリン" && Math.random() < 0.2) { myData.inventory.bag.push("ナイフ"); battleLog += `<br><b style="color:#eab308;">宝箱を拾った！「ナイフ」を手に入れた！</b>`; itemDropped = true; }
-    if (enemy.n === "月の番人" && Math.random() < 0.2) { myData.inventory.bag.push("天の羽衣"); battleLog += `<br><b style="color:#eab308;">宝箱を拾った！「天の羽衣」を手に入れた！</b>`; itemDropped = true; }
+    if (enemy.n === "ゴブリン" && Math.random() < 0.2) { inv.bag.push("ナイフ"); battleLog += `<br>宝箱：ナイフGET!`; }
+    if (enemy.n === "月の番人" && Math.random() < 0.2) { inv.bag.push("天の羽衣"); battleLog += `<br>宝箱：天の羽衣GET!`; }
 
-    // レベルアップ処理
     while (myData.exp >= 100 + (myData.lv * 50)) {
       myData.exp -= 100 + (myData.lv * 50); 
-      myData.lv++; 
-      myData.base_max_hp += 15;
-      let newMax = Number(myData.base_max_hp) + (armorHPs[myData.inventory.armor] || 0);
-      myData.hp = newMax; 
-      battleLog += `<br><span style="color:#a855f7;"><b>⭐⭐⭐ レベルアップ！ Lv${f(myData.lv)}になった！ ⭐⭐⭐</b></span>`;
+      myData.lv++; myData.base_max_hp += 15;
+      myData.hp = Number(myData.base_max_hp) + (armorHPs[inv.armor] || 0); 
+      battleLog += `<br><span style="color:#a855f7;"><b>レベルアップ！ Lv${f(myData.lv)}になった！</b></span>`;
     }
   }
 
-  await _supabase.from('players').update({ hp: myData.hp, base_max_hp: myData.base_max_hp, lv: myData.lv, exp: myData.exp, gold: myData.gold, inventory: myData.inventory }).eq('name', myData.name);
+  await _supabase.from('players').update({ hp: myData.hp, base_max_hp: myData.base_max_hp, lv: myData.lv, exp: myData.exp, gold: myData.gold, inventory: inv }).eq('name', myData.name);
   document.getElementById('log').innerHTML = log + battleLog;
   updateUI();
   
@@ -189,24 +197,25 @@ async function cmdBattle() {
   }, 1000);
 }
 
-// --- 休息 ---
+// 休息
 async function cmdRest() {
   if(!myData) return;
   const armorHPs = { "皮の服": 20, "銅の鎧": 200, "鉄の鎧": 400, "金の鎧": 900, "プラチナの鎧": 2000, "妖精の服": 100000, "天の羽衣": 2000000 };
-  let maxHp = Number(myData.base_max_hp) + (armorHPs[myData.inventory.armor] || 0);
+  const inv = myData.inventory || { weapon: null, armor: null, bag: [] };
+  let maxHp = Number(myData.base_max_hp) + (armorHPs[inv.armor] || 0);
   myData.hp = maxHp;
   await _supabase.from('players').update({ hp: maxHp }).eq('name', myData.name);
-  document.getElementById('log').innerHTML = "宿屋で体力を回復した！（HPが全快しました）";
+  document.getElementById('log').innerHTML = "宿屋で全快した！";
   updateUI();
 }
 
-// --- ショップ・装備 ---
+// ショップ
 function openYourShop() {
   let html = `<h3>ーーー 武器屋 ーーー</h3><div style="text-align:left; background:#111; padding:10px; font-size:13px;">`;
   const list = [
     {id:"weapon1",n:"レベルの遺伝子 (Lv+1)",p:1000},{id:"weapon2",n:"レベルの種 (Lv+3)",p:3000},{id:"weapon4",n:"レベルの苗 (Lv+20)",p:16000},{id:"weapon5",n:"レベルの花 (Lv+100)",p:80000},{id:"weapon6",n:"レベルの実 (Lv+1010)",p:800000},{id:"weapon7",n:"レベルの星 (Lv+10100)",p:8000000},
-    {id:"katana",n:"刀 (攻撃力+250)",p:10000},{id:"leather",n:"皮の服 (HP+20)",p:2000},{id:"longsword",n:"ロングソード (ATK+400)",p:20000},{id:"dagger",n:"ダガー (ATK+600)",p:30000},{id:"waitosu",n:"ワイトスレイヤー (ATK+50000)",p:20000000},{id:"muramasa",n:"ムラマサ (ATK+200000)",p:800000000},
-    {id:"armor_copper",n:"銅の鎧 (HP+200)",p:10000},{id:"armor_iron",n:"鉄の鎧 (HP+400)",p:20000},{id:"armor_gold",n:"金の鎧 (HP+900)",p:40000},{id:"armor_plat",n:"プラチナの鎧 (HP+2000)",p:80000},{id:"armor_fairy",n:"妖精の服 (HP+10万)",p:20000000},
+    {id:"katana",n:"刀 (250)",p:10000},{id:"leather",n:"皮の服 (20)",p:2000},{id:"longsword",n:"ロングソード (400)",p:20000},{id:"dagger",n:"ダガー (600)",p:30000},{id:"waitosu",n:"ワイトスレイヤー (50000)",p:20000000},{id:"muramasa",n:"ムラマサ (200000)",p:800000000},
+    {id:"armor_copper",n:"銅の鎧 (200)",p:10000},{id:"armor_iron",n:"鉄の鎧 (400)",p:20000},{id:"armor_gold",n:"金の鎧 (900)",p:40000},{id:"armor_plat",n:"プラチナの鎧 (2000)",p:80000},{id:"armor_fairy",n:"妖精の服 (10万)",p:20000000},
     {id:"scroll_war",n:"戦士の巻物",p:500000},{id:"scroll_mag",n:"魔法使いの巻物",p:500000},{id:"scroll_arc",n:"アーチャーの巻物",p:500000}
   ];
   list.forEach(i => {
@@ -217,7 +226,7 @@ function openYourShop() {
 
 async function executePurchase(itemId) {
   const list = [
-    {id:"weapon1",p:1000,lv:1},{id:"weapon2",p:3000,lv:3},{id:"weapon4",p:16000,lv:20},{id:"weapon5",p:80000,lv:100},{id:"weapon6",p:800000,lv:1010},{id:"weapon7",p:8000000,lv:10100},
+    {id:"weapon1",p:1000,lv:1,n:"レベルの遺伝子"},{id:"weapon2",p:3000,lv:3,n:"レベルの種"},{id:"weapon4",p:16000,lv:20,n:"レベルの苗"},{id:"weapon5",p:80000,lv:100,n:"レベルの花"},{id:"weapon6",p:800000,lv:1010,n:"レベルの実"},{id:"weapon7",p:8000000,lv:10100,n:"レベルの星"},
     {id:"katana",n:"刀",p:10000},{id:"leather",n:"皮の服",p:2000},{id:"longsword",n:"ロングソード",p:20000},{id:"dagger",n:"ダガー",p:30000},{id:"waitosu",n:"ワイトスレイヤー",p:20000000},{id:"muramasa",n:"ムラマサ",p:800000000},
     {id:"armor_copper",n:"銅の鎧",p:10000},{id:"armor_iron",n:"鉄の鎧",p:20000},{id:"armor_gold",n:"金の鎧",p:40000},{id:"armor_plat",n:"プラチナの鎧",p:80000},{id:"armor_fairy",n:"妖精の服",p:20000000},
     {id:"scroll_war",n:"戦士",p:500000},{id:"scroll_mag",n:"魔法使い",p:500000},{id:"scroll_arc",n:"アーチャー",p:500000}
@@ -225,75 +234,83 @@ async function executePurchase(itemId) {
   const it = list.find(x => x.id === itemId);
   if(myData.gold < it.p) return alert("お金が足りないよ！");
 
+  const inv = myData.inventory || { weapon: null, armor: null, bag: [] };
   myData.gold -= it.p;
-  let msg = "まいどあり！";
 
   if(itemId.startsWith("scroll_")) {
     myData.job = it.n; myData.hp = Math.floor(myData.hp * 0.8);
-    msg = `今日から君は ${it.n} だね！`;
   } else if(it.lv) {
     myData.lv += it.lv; myData.base_max_hp += (15 * it.lv);
   } else {
-    myData.inventory.bag.push(it.n);
+    inv.bag.push(it.n);
   }
 
-  await _supabase.from('players').update({ gold: myData.gold, job: myData.job, hp: myData.hp, lv: myData.lv, base_max_hp: myData.base_max_hp, inventory: myData.inventory }).eq('name', myData.name);
+  await _supabase.from('players').update({ gold: myData.gold, job: myData.job, hp: myData.hp, lv: myData.lv, base_max_hp: myData.base_max_hp, inventory: inv }).eq('name', myData.name);
   updateUI();
-  document.getElementById('log').innerHTML = `<h3>ーーー 武器屋 ーーー</h3>店主：「${msg}」`;
+  document.getElementById('log').innerHTML = "購入完了！";
 }
 
+// 装備
 async function cmdEquip(name) {
-  const idx = myData.inventory.bag.indexOf(name);
-  myData.inventory.bag.splice(idx, 1);
+  const inv = myData.inventory;
+  const idx = inv.bag.indexOf(name);
+  inv.bag.splice(idx, 1);
   const wpns = ["刀", "ロングソード", "ダガー", "ワイトスレイヤー", "ムラマサ", "ナイフ"];
   if(wpns.includes(name)) {
-    if(myData.inventory.weapon) myData.inventory.bag.push(myData.inventory.weapon);
-    myData.inventory.weapon = name;
+    if(inv.weapon) inv.bag.push(inv.weapon);
+    inv.weapon = name;
   } else {
-    if(myData.inventory.armor) myData.inventory.bag.push(myData.inventory.armor);
-    myData.inventory.armor = name;
+    if(inv.armor) inv.bag.push(inv.armor);
+    inv.armor = name;
   }
-  await _supabase.from('players').update({ inventory: myData.inventory }).eq('name', myData.name);
+  await _supabase.from('players').update({ inventory: inv }).eq('name', myData.name);
   updateUI();
 }
 
 async function cmdUnequip(type) {
-  const item = myData.inventory[type];
+  const inv = myData.inventory;
+  const item = inv[type];
   if(!item) return;
-  myData.inventory.bag.push(item);
-  myData.inventory[type] = null;
-  await _supabase.from('players').update({ inventory: myData.inventory }).eq('name', myData.name);
+  inv.bag.push(item);
+  inv[type] = null;
+  await _supabase.from('players').update({ inventory: inv }).eq('name', myData.name);
   updateUI();
 }
 
-// --- レイド・チャット・お知らせ（同期・完全移植） ---
+// その他情報更新
 async function refreshWorldInfo() {
-  // ボス
-  const { data: boss } = await _supabase.from('raid_boss').select('*').eq('id', 1).single();
-  const { data: ranks } = await _supabase.from('raid_rank').select('*').order('dmg', {ascending: false}).limit(5);
-  const hpPer = (boss.hp / boss.max_hp) * 100;
-  document.getElementById('raid-boss-info').innerHTML = `<b>${boss.name}</b> (HP: ${f(boss.hp)} / ${f(boss.max_hp)})<div class="hp-bar"><div class="hp-fill" style="width:${hpPer}%; background:#ef4444;"></div></div>`;
-  let rankHtml = "ダメージランキング: ";
-  ranks?.forEach(r => rankHtml += `${r.player_name}(${f(r.dmg)}) `);
-  document.getElementById('raid-damage-rank').innerText = rankHtml;
+  try {
+    // ボス
+    const { data: boss } = await _supabase.from('raid_boss').select('*').eq('id', 1).single();
+    if (boss) {
+      const hpPer = (boss.hp / boss.max_hp) * 100;
+      document.getElementById('raid-boss-info').innerHTML = `<b>${boss.name}</b> (HP: ${f(boss.hp)})<div class="hp-bar"><div class="hp-fill" style="width:${hpPer}%; background:red;"></div></div>`;
+    }
 
-  // ランキング
-  const { data: topPlayers } = await _supabase.from('players').select('name, lv').order('lv', {ascending: false}).limit(5);
-  let rHtml = "";
-  topPlayers?.forEach((p, i) => rHtml += `<div class="rank-item"><span>${i+1}位. <b>${p.name}</b></span><span style="color:#38bdf8;">Lv.${f(p.lv)}</span></div>`);
-  document.getElementById('ranking-list').innerHTML = rHtml;
+    // ダメージランク
+    const { data: ranks } = await _supabase.from('raid_rank').select('*').order('dmg', {ascending: false}).limit(5);
+    let rankHtml = "ダメージランク: ";
+    ranks?.forEach(r => rankHtml += `${r.player_name}(${f(r.dmg)}) `);
+    document.getElementById('raid-damage-rank').innerText = rankHtml;
 
-  // チャット
-  const { data: chats } = await _supabase.from('chat').select('*').order('created_at', {ascending: false}).limit(20);
-  let cHtml = "";
-  chats?.reverse().forEach(c => cHtml += `<div style="border-bottom: 1px dashed #333; padding: 3px 0;"><b style="color:#eab308;">${c.name}</b>: ${c.message}</div>`);
-  document.getElementById('chat-box').innerHTML = cHtml;
+    // 最強ランク
+    const { data: top } = await _supabase.from('players').select('name, lv').order('lv', {ascending: false}).limit(5);
+    let rHtml = "";
+    top?.forEach((p, i) => rHtml += `<div class="rank-item"><span>${i+1}. <b>${p.name}</b></span><span>Lv.${f(p.lv)}</span></div>`);
+    document.getElementById('ranking-list').innerHTML = rHtml;
 
-  // お知らせ
-  const { data: notices } = await _supabase.from('notices').select('*').order('date', {ascending: false}).limit(5);
-  let nHtml = "";
-  notices?.forEach(n => nHtml += `<div style="margin-bottom: 5px;">[${new Date(n.date).toLocaleDateString()}] ${n.text}</div>`);
-  document.getElementById('notice-box').innerHTML = nHtml;
+    // チャット
+    const { data: chats } = await _supabase.from('chat').select('*').order('created_at', {ascending: false}).limit(15);
+    let cHtml = "";
+    chats?.reverse().forEach(c => cHtml += `<div><b>${c.name}</b>: ${c.message}</div>`);
+    document.getElementById('chat-box').innerHTML = cHtml;
+
+    // お知らせ
+    const { data: notices } = await _supabase.from('notices').select('*').order('date', {ascending: false}).limit(5);
+    let nHtml = "";
+    notices?.forEach(n => nHtml += `<div>[${new Date(n.date).toLocaleDateString()}] ${n.text}</div>`);
+    document.getElementById('notice-box').innerHTML = nHtml;
+  } catch (e) {}
 }
 
 async function cmdSendChat() {
@@ -305,33 +322,28 @@ async function cmdSendChat() {
 
 async function cmdRaidChallenge() {
   const now = Date.now();
-  if(now - myData.last_raid < 100000) return alert(`あと ${Math.ceil((100000-(now-myData.last_raid))/1000)} 秒待って！`);
+  if(now - myData.last_raid < 100000) return alert("待機中");
   const { data: boss } = await _supabase.from('raid_boss').select('*').eq('id', 1).single();
-  if(boss.hp <= 0) return alert("ボスは倒されています。");
-
+  
   let pStr = 8 + myData.lv * 4;
   const weaponAtks = {"刀": 250, "ロングソード": 400, "ダガー": 600, "ワイトスレイヤー": 50000, "ムラマサ": 200000};
-  if (myData.inventory.weapon) pStr += (weaponAtks[myData.inventory.weapon] || 0);
+  const inv = myData.inventory || { weapon: null, armor: null, bag: [] };
+  if (inv.weapon) pStr += (weaponAtks[inv.weapon] || 0);
   if (myData.job === "戦士") pStr *= 1.1;
 
-  let totalDmg = 0;
-  for (let i = 0; i < 10; i++) {
-    let d = Math.floor(Math.random() * pStr) + 1;
-    if (myData.job === "アーチャー" && Math.random() < 0.3) d *= 1.2;
-    totalDmg += d;
-  }
+  let dmg = 0;
+  for (let i = 0; i < 10; i++) dmg += Math.floor(Math.random() * pStr) + 1;
   
-  let newBossHp = Math.max(0, Number(boss.hp) - totalDmg);
+  let newBossHp = Math.max(0, Number(boss.hp) - dmg);
   await _supabase.from('raid_boss').update({ hp: newBossHp }).eq('id', 1);
   myData.hp = Math.max(0, myData.hp - (Math.floor(Math.random() * Number(boss.str)) + 1));
-  myData.last_raid = now;
   
   await _supabase.from('players').update({ hp: myData.hp, last_raid: now }).eq('name', myData.name);
   
   const { data: myRank } = await _supabase.from('raid_rank').select('*').eq('player_name', myData.name).single();
-  if(myRank) await _supabase.from('raid_rank').update({ dmg: Number(myRank.dmg) + totalDmg }).eq('player_name', myData.name);
-  else await _supabase.from('raid_rank').insert([{ player_name: myData.name, dmg: totalDmg }]);
+  if(myRank) await _supabase.from('raid_rank').update({ dmg: Number(myRank.dmg) + dmg }).eq('player_name', myData.name);
+  else await _supabase.from('raid_rank').insert([{ player_name: myData.name, dmg: dmg }]);
 
-  document.getElementById('log').innerHTML = `<h3>レイドバトル！</h3>${boss.name} に <b style="color:#38bdf8;">${f(totalDmg)}</b> のダメージ！`;
+  document.getElementById('log').innerHTML = `レイドバトル！ ${boss.name} に ${f(dmg)} ダメージ！`;
   updateUI();
 }
