@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FFA Online Supabase</title>
+  <title>GAS FFA Online v1.3.0 (Supabase版)</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    /* 元のCSSを100%維持 */
     body { background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; text-align: center; margin: 0; padding: 20px; }
     .main-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; max-width: 1000px; margin: 0 auto; }
     .game-panel { flex: 2; min-width: 320px; }
@@ -16,7 +15,7 @@
     .control-panel { margin: 15px 0; }
     select, input { padding: 8px; background: #333; color: #fff; border: 1px solid #555; font-size: 14px; font-weight: bold; margin: 3px; }
     input { width: 120px; }
-    button { padding: 10px 18px; background: #222; color: #00ff00; border: 2px solid #00ff00; border-radius: 6px; font-size: 14px; font-weight: bold; font-family: 'Courier New', monospace; margin: 5px; cursor: pointer; box-shadow: 0 0 8px rgba(0, 255, 0, 0.2); transition: all 0.2s ease; }
+    button { padding: 10px 18px; background: #222; color: #00ff00; border: 2px solid #00ff00; border-radius: 6px; font-size: 14px; font-weight: bold; font-family: 'Courier New', monospace; margin: 5px; cursor: pointer; transition: all 0.2s ease; }
     button:hover:not(:disabled) { background: #00ff00; color: #000; box-shadow: 0 0 15px #00ff00; }
     button:disabled { background: #111; color: #444; border-color: #444; cursor: not-allowed; }
     .hp-bar { background: #333; height: 10px; width: 100%; margin-top: 5px; }
@@ -25,17 +24,20 @@
   </style>
 </head>
 <body>
-  <h1>GAS FFA Online v1.3.0 (Supabase)</h1>
+  <h1>GAS FFA Online v1.3.0</h1>
   <div class="main-container">
     <div class="game-panel">
       <div class="login-window" id="login-form">
-        <b style="color:#fff;">👤 ログイン / 新規登録</b><br>
+        <b style="color:#fff;">👤 プレイヤーログイン / 新規登録</b><br>
         <input type="text" id="player-name" placeholder="名前">
         <input type="password" id="player-pass" placeholder="パスワード">
         <button onclick="cmdLogin()">ログイン</button>
       </div>
-      <div class="status-window" id="status">ログインしてください。</div>
+      <div class="status-window" id="status">
+        <div>ログインするとステータスが表示されます。</div>
+      </div>
       <div class="control-panel">
+        <label for="area-select" style="color:#aaa;">行先：</label>
         <select id="area-select" disabled>
           <option value="beginner">初心者系エリア</option>
           <option value="cave">洞窟系エリア</option>
@@ -47,31 +49,44 @@
           <option value="wastes">荒原系エリア</option>
           <option value="desert">砂漠系エリア</option>
           <option value="taiga">針葉系エリア</option>
-          <option value="goldget">ゴールドゲット</option>
+          <option value="goldget" style="color: #ff9900;">ゴールドゲット</option>
         </select>
         <button id="btn-battle" onclick="cmdBattle()" disabled>冒険する (5s)</button>
         <button id="btn-rest" onclick="cmdRest()" disabled>休息する</button>
         <button id="btn-shop" onclick="openYourShop()" disabled>ショップを開く</button>
       </div>
-      <div class="log-window" id="log"></div>
+      <div class="log-window" id="log">ログインしてください。</div>
       <div class="status-window" id="inventory-panel" style="display:none;">
         <b style="color:#38bdf8;">🎒 インベントリ</b><br>
-        職業: <span id="p-job"></span><br>
-        武器: <span id="inv-weapon"></span> <button onclick="cmdUnequip('weapon')" id="btn-un-weapon">外す</button><br>
-        防具: <span id="inv-armor"></span> <button onclick="cmdUnequip('armor')" id="btn-un-armor">外す</button><br>
-        <div id="bag-list" style="margin-top:10px; border-top:1px dashed #555;"></div>
+        <div style="font-size:13px;">
+          職業: <span id="p-job" style="color:#a855f7; font-weight:bold;"></span><br>
+          武器: <span id="inv-weapon"></span> <button id="btn-un-weapon" onclick="cmdUnequip('weapon')" style="padding:2px 5px; font-size:11px; display:none;">外す</button><br>
+          防具: <span id="inv-armor"></span> <button id="btn-un-armor" onclick="cmdUnequip('armor')" style="padding:2px 5px; font-size:11px; display:none;">外す</button>
+        </div>
+        <div id="bag-list" style="font-size:13px; border-top:1px dashed #555; margin-top:5px;"></div>
       </div>
-      <div class="status-window" id="raid-panel" style="display:none; border-color:#ef4444;">
+      <div class="status-window" id="raid-panel" style="display:none; border-color: #ef4444;">
         <b style="color:#ef4444;">👹 レイドボス</b>
         <div id="raid-boss-info"></div>
-        <button id="btn-raid-challenge" onclick="cmdRaidChallenge()">ボスに挑戦 (100s)</button>
+        <button id="btn-raid-challenge" onclick="cmdRaidChallenge()">ボスに挑戦</button>
         <div id="raid-damage-rank"></div>
       </div>
     </div>
     <div class="sidebar-panel">
-      <div class="ranking-window"><b>🏆 TOP5</b><div id="ranking-list"></div></div>
-      <div class="status-window"><b>💬 チャット</b><div id="chat-box" style="height:200px; overflow-y:auto; background:#000;"></div><input type="text" id="chat-msg-input" style="width:60%;"><button onclick="cmdSendChat()">送信</button></div>
-      <div class="status-window"><b>📢 お知らせ</b><div id="notice-box" style="max-height:100px; overflow-y:auto;"></div></div>
+      <div class="ranking-window">
+        <b style="color:#eab308;">🏆 最強プレイヤーTOP5</b>
+        <div id="ranking-list"></div>
+      </div>
+      <div class="status-window">
+        <b style="color:#38bdf8;">💬 チャット</b>
+        <div id="chat-box" style="height: 200px; overflow-y: auto; background: #000; padding: 10px; font-size: 13px; margin-bottom: 10px;"></div>
+        <input type="text" id="chat-msg-input" style="width: 60%;">
+        <button onclick="cmdSendChat()">送信</button>
+      </div>
+      <div class="status-window">
+        <b style="color:#38bdf8;">📢 お知らせ</b>
+        <div id="notice-box" style="font-size: 13px; max-height: 150px; overflow-y: auto;"></div>
+      </div>
     </div>
   </div>
   <script src="script.js"></script>
