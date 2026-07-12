@@ -1,1 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supabase版 FFA Online</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>FFA Online Supabase Edition</h1>
 
+  <div class="main-container">
+    <div class="game-panel">
+      <div class="login-window" id="login-form">
+        <b style="color:#fff;">👤 プレイヤーログイン / 新規登録</b><br>
+        <input type="text" id="player-name" placeholder="名前">
+        <input type="password" id="player-pass" placeholder="パスワード">
+        <button onclick="cmdLogin()">ログイン</button>
+      </div>
+
+      <div id="status" class="status-window">
+        <div>ログインするとステータスが表示されます。</div>
+      </div>
+
+      <div class="control-panel">
+        <label for="area-select" style="color:#aaa;">行先：</label>
+        <select id="area-select" disabled>
+          <option value="beginner">初心者系エリア</option>
+          <option value="cave">洞窟系エリア</option>
+          <option value="plains">平原系エリア</option>
+          <option value="lava">溶岩系エリア</option>
+          <option value="snow">雪山系エリア</option>
+          <option value="ocean">海洋系エリア</option>
+          <option value="deep">深層系エリア</option>
+          <option value="wastes">荒原系エリア</option>
+          <option value="desert">砂漠系エリア</option>
+          <option value="taiga">針葉系エリア</option>
+          <option value="goldget" style="color: #ff9900;">ゴールドゲット</option>
+        </select>
+        <button id="btn-battle" onclick="cmdBattle()" disabled>冒険する (5s)</button>
+        <button id="btn-rest" onclick="cmdRest()" disabled>休息する</button>
+        <button id="btn-shop" onclick="openYourShop()" disabled>ショップを開く</button>
+      </div>
+
+      <div id="log" class="log-window">
+        ログインしてください。
+      </div>
+
+      <div class="status-window" id="inventory-panel" style="display:none; margin-top: 15px;">
+        <b style="color:#38bdf8;">🎒 インベントリ</b><br>
+        <div style="margin: 5px 0; font-size:13px;">
+          職業: <span id="p-job" style="color:#a855f7; font-weight:bold;">冒険者</span><br>
+          装備中武器: <span id="inv-weapon" style="color:#ff0000; font-weight:bold;">なし</span> <button id="btn-un-weapon" onclick="cmdUnequip('weapon')" style="display:none;">外す</button><br>
+          装備中防具: <span id="inv-armor" style="color:#38bdf8; font-weight:bold;">なし</span> <button id="btn-un-armor" onclick="cmdUnequip('armor')" style="display:none;">外す</button>
+        </div>
+        <div id="bag-list" style="font-size:13px; margin-top:5px; border-top:1px dashed #555;">なし</div>
+      </div>
+
+      <div class="status-window" id="raid-panel" style="display:none; border-color: #ef4444;">
+        <b style="color:#ef4444;">👹 レイドボス急襲中！</b>
+        <div id="raid-boss-info">読み込み中...</div>
+        <button id="btn-raid-challenge" onclick="cmdRaidChallenge()">ボスに挑戦 (100s)</button>
+        <div id="raid-damage-rank"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-panel">
+      <div class="ranking-window">
+        <b style="color:#eab308;">🏆 最強プレイヤーTOP5</b>
+        <div id="ranking-list"></div>
+      </div>
+      <div class="status-window">
+        <b style="color:#38bdf8;">💬 チャット</b>
+        <div id="chat-box" style="height:200px; overflow-y:auto; background:#000; font-size:13px;"></div>
+        <input type="text" id="chat-msg-input" style="width:60%;">
+        <button onclick="cmdSendChat()">送信</button>
+      </div>
+      <div class="status-window">
+        <b style="color:#38bdf8;">📢 お知らせ</b>
+        <div id="notice-box" style="max-height:150px; overflow-y:auto; font-size:13px;"></div>
+      </div>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
