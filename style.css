@@ -1,1 +1,13 @@
-
+body { background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; text-align: center; margin: 0; padding: 20px; }
+.main-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; max-width: 1000px; margin: 0 auto; }
+.game-panel { flex: 2; min-width: 320px; }
+.sidebar-panel { flex: 1; min-width: 250px; }
+.status-window, .login-window, .ranking-window { border: 2px solid #555; background: #222; padding: 15px; text-align: left; margin-bottom: 15px; }
+.log-window { border: 1px solid #444; height: 280px; overflow-y: auto; background: #000; padding: 15px; text-align: left; font-size: 14px; line-height: 1.6; margin-bottom: 15px; }
+input, select { padding: 8px; background: #333; color: #fff; border: 1px solid #555; }
+button { padding: 8px 15px; background: #222; color: #00ff00; border: 2px solid #00ff00; cursor: pointer; font-weight: bold; }
+button:hover { background: #00ff00; color: #000; }
+button:disabled { border-color: #444; color: #444; cursor: not-allowed; }
+.hp-bar { background: #333; height: 10px; width: 100%; margin-top: 5px; }
+.hp-fill { background: #f00; height: 100%; transition: width 0.3s; }
+.rank-item { border-bottom: 1px dashed #444; padding: 5px 0; display: flex; justify-content: space-between; font-size: 13px; }
