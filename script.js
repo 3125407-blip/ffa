@@ -1,6 +1,6 @@
 // ★★★ 自分のSupabase情報に書き換えてください ★★★
-const SUPABASE_URL = 'https://XXXXXXXX.supabase.co';
-const SUPABASE_KEY = 'YOUR_ANON_KEY';
+const SUPABASE_URL = 'https://chvypwumqcbudgediwdo.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNodnlwd3VtcWNidWRnZWRpd2RvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4MzM0NDMsImV4cCI6MjA5OTQwOTQ0M30.8fpK0wwF2kfQjZe5fZnAfoBEuAaYbPca0W_tudIrHKk';
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let myData = null; // ログイン中のプレイヤーデータ
